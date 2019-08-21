@@ -30,6 +30,12 @@ mass * 1
 
 pair_coeff * *
 
+bond_coeff 1 1 1
+bond_coeff 2 1 1
+bond_coeff 3 1 1
+bond_coeff 4 1 1
+bond_coeff 5 1 1
+
 group    g1 id 1:1
 group    g2 id 2:2
 group    g3 id 3:3

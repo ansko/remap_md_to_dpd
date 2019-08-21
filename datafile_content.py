@@ -634,12 +634,14 @@ class DatafileContent:
             tmppr()
         else:
             tmppr(self.comment)
-        if self.atoms_count is not None and self.atoms_count > 0:
+        if self.atoms_count is not None:
             tmppr(self.atoms_count, 'atoms')
+        if self.atom_types is not None:
             tmppr(self.atom_types, 'atom types')
             assert(self.atom_types > 0)  # not None
-        if self.bonds_count is not None and self.bonds_count > 0:
+        if self.bonds_count is not None:
             tmppr(self.bonds_count, 'bonds')
+        if self.bond_types is not None:
             tmppr(self.bond_types, 'bond types')
             assert(self.bond_types > 0)
         if self.angles_count is not None and self.angles_count > 0:
@@ -680,7 +682,7 @@ class DatafileContent:
                 else:
                     tmppr(coeff['pair_coeff_id'], coeff['coeff_eps'],
                         coeff['coeff_sig'])
-        if self.bonds is not None:
+        if self.bond_coeffs is not None:
             tmppr('')
             tmppr('Bond Coeffs')
             tmppr('')
