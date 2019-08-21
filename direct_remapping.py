@@ -332,6 +332,13 @@ if __name__ == '__main__':
         'polymer_head': 0,
         'polymer_tail': 0
     }
+    bond_types = {
+        'mmt_edge': 1,
+        'mmt_diagonal': 2,
+        'modifier_head_tail': 3,
+        'modifier_tail_tail': 4,
+        'polymer': 5
+    }
 
     atomistic_input_fname = 'L_d.12500000.data'
     mesoscopic_outuput_fname = 'test.data'
@@ -367,12 +374,6 @@ if __name__ == '__main__':
     soft_beads_count = ((MODIFIER_TAIL + 1) * MODIFIERS_IN_SUBSYSTEM
                    + POLYMERIZATION * POLYMERS_IN_SUBSYSTEM) * SUBSYSTEMS_COUNT
 
-    bond_lengths = {
-        'mod_head_tail': {'count': 0, 'value': 0},
-        'mod_tail_tail': {'count': 0, 'value': 0},
-        'polymer': {'count': 0, 'value': 0},
-    }
-
     for bead_idx in range(soft_beads_count):
         info = get_atoms_info_from_bead_idx(bead_idx)
         c = get_bead_geometry_center(atomistic_dfc, info['atoms_idcs'])
@@ -391,33 +392,64 @@ if __name__ == '__main__':
             'nz': 0,
             'comment': info['phase']
         })
-        try:
-            dx = abs(meso_dfc.atoms[bead_id - 1]['x']
-                     -meso_dfc.atoms[bead_id]['x'])
-            dy = abs(meso_dfc.atoms[bead_id - 1]['y']
-                     -meso_dfc.atoms[bead_id]['y'])
-            dz = abs(meso_dfc.atoms[bead_id - 1]['z']
-                     -meso_dfc.atoms[bead_id]['z'])
-            dr = (dx**2 + dy**2 + dz**2)**0.5
-            print(info['phase'])
-            if (set((info['phase'], meso_dfc.atoms[bead_id - 1]['comment']))
-                == set(('modifier_tail', 'modifier_head'))):
-                    bond_lengths['mod_head_tail']['value'] += dr
-                    bond_lengths['mod_head_tail']['count'] += 1
-            elif (set(info['phase'], meso_dfc.atoms[bead_id - 1]['comment'])
-                  == set(('modifier_tail'))):
-                    bond_lengths['mod_tail_tail']['value'] += dr
-                    bond_lengths['mod_tail_tail']['count'] += 1
-            elif (set(info['phase'], meso_dfc.atoms[bead_id - 1]['comment'])
-                  in [set(('polymer', 'polymer')),
-                      set(('polymer_head', 'polymer')),
-                      set(('polymer_tail', 'polymer'))]):
-                    bond_lengths['polymer']['value'] += dr
-                    bond_lengths['polymer']['count'] += 1
-        except Exception:
-            pass
+        bead_id += 1
 
-    bead_id += 1
+    # analyze bond lengths
+    bond_lengths = {
+        'mod_head_tail': {'count': 0, 'value': 0},
+        'mod_tail_tail': {'count': 0, 'value': 0},
+        'polymer': {'count': 0, 'value': 0},
+    }
+    meso_lx = meso_dfc.xhi - meso_dfc.xlo
+    meso_ly = meso_dfc.yhi - meso_dfc.ylo
+    meso_lz = meso_dfc.zhi - meso_dfc.zlo
+
+    bond_id = meso_dfc.bonds[-1]['bond_id'] + 1
+    for idx, atom in enumerate(meso_dfc.atoms):
+        if atom['comment'] is None:
+            continue
+        if atom['molecule-tag'] != meso_dfc.atoms[idx - 1]['molecule-tag']:
+           continue
+        atom2 = meso_dfc.atoms[idx - 1]
+        dx = abs(atom2['x'] - atom['x'])
+        dx = min(dx, meso_lx - dx)
+        dy = abs(atom2['y'] - atom['y'])
+        dy = min(dy, meso_ly - dy)
+        dz = abs(atom2['z'] - atom['z'])
+        dz = min(dz, meso_lz - dz)
+        dr = (dx**2 + dy**2 + dz**2)**0.5
+        k = None
+        if atom['comment'] == atom2['comment'] == 'modifier_tail':
+            k = 'mod_tail_tail'
+            meso_dfc.bonds.append({
+                'bond_id': bond_id,
+                'bond_type_id': bond_types['modifier_tail_tail'],
+                'atom_one_id': atom['atom_id'],
+                'atom_two_id': atom2['atom_id'],
+            })
+            bond_id += 1
+        elif atom['comment'] == 'modifier_tail':
+            k = 'mod_head_tail'
+            meso_dfc.bonds.append({
+                'bond_id': bond_id,
+                'bond_type_id': bond_types['modifier_head_tail'],
+                'atom_one_id': atom['atom_id'],
+                'atom_two_id': atom2['atom_id'],
+            })
+            bond_id += 1
+        elif atom['comment'].startswith('polymer') and atom2['comment'].startswith('polymer'):
+            k = 'polymer'
+            meso_dfc.bonds.append({
+                'bond_id': bond_id,
+                'bond_type_id': bond_types['polymer'],
+                'atom_one_id': atom['atom_id'],
+                'atom_two_id': atom2['atom_id'],
+            })
+            bond_id += 1
+        if k is not None and dr > 2:
+            print(k, dr, dx, dy, dz)
+        bond_lengths[k]['value'] += dr
+        bond_lengths[k]['count'] += 1
 
     for k in ['mod_head_tail', 'mod_tail_tail', 'polymer']:
         try:
